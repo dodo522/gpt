@@ -3,3 +3,5 @@
 .brand-section{margin-top:24px;padding:20px;background:#f7f9f2;border:1px solid #e2e8d9;border-radius:8px}.brand-section p,.brand-preview p{font-size:11px;color:#86937a;line-height:1.8;margin:9px 0}.brand-section textarea{background:white;min-height:170px;margin-top:12px}.optional{font-size:10px;color:#8c9c7b;margin-left:8px}.brand-status{font-size:10px;color:#7b8e69;text-align:right;margin-top:7px}.brand-preview{border:1px solid #dfe5d6;border-radius:8px;padding:15px 18px;margin-top:18px;background:#f0f4e9;font-size:12px;color:#5d7350}.brand-preview summary{cursor:pointer}.brand-preview pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:250px;overflow:auto;font:inherit;line-height:1.9;color:#46543c}
 
 .discussion-mode{display:flex;align-items:center;gap:10px;font-size:11px;color:#738364;margin-bottom:12px}.discussion-mode select{font:inherit;padding:7px 10px;border:1px solid #dce3d2;border-radius:5px;background:#f5f8ee;color:#48633c}
+
+#messageForm>div{gap:10px;flex-wrap:wrap}#modeHint{margin-right:auto}#newQuestion{font-size:11px}

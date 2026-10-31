@@ -98,7 +98,13 @@ export async function handle(action, body){
   const last=[...history].reverse().find(m=>m.kind==='user')?.text||'';
   if(demo)return {text:`关于「${last.slice(0,90)}」，我从${employee.role}的角度建议：${['先访谈 5 位目标用户，记录他们现在如何解决问题，再选一个最强烈的痛点做小规模验证。','先确定一个两周内可以验证的假设，给方案设定预算上限和一个明确的成功指标。','可以把它做成一个让用户愿意分享的小体验，先尝试两种不同表达，再比较真实反馈。','先做最小可行版本，只保留核心路径；提前列出成本、依赖和最可能失败的环节。'][Math.max(0,names.indexOf(employee.name))%4]}\n\n我想继续追问：这次讨论最优先解决的用户问题是什么？`};
   const discussionMode=body.discussionMode==='plan'?'plan':'discussion';
-  const data=await gpt(discussionPrompt, {employee,topic,brandContext,discussionMode,history:history.slice(-40)}, 'text');
+  const roundPhase=body.roundPhase==='independent'?'independent':'shared';
+  // Defense in depth: even a client sending partial peer replies cannot leak this round.
+  const lastUser=history.findLastIndex(m=>m.kind==='user');
+  if(roundPhase==='independent'&&lastUser<0)throw new Error('独立思考需要一个用户问题。');
+  const visibleHistory=roundPhase==='independent'?history.slice(0,lastUser+1):history;
+  const phaseRules=roundPhase==='independent'?'本轮是独立思考。你没有看到其他员工对最新问题的回答，不要猜测或编造他们本轮的观点。根据自己的角色、品牌资料及此前对话形成判断，可以得出不同方向，不需要为了不同而刻意反对。':'本轮是共享讨论。可以读取已出现的观点，也可以坚持自己的判断；发言位置不代表身份或责任，不要因为排在后面就只负责总结。';
+  const data=await gpt(discussionPrompt+'\n'+phaseRules, {employee,topic,brandContext,discussionMode,roundPhase,history:visibleHistory.slice(-40)}, 'text');
   if(typeof data.text!=='string'||!data.text.trim())throw new Error('AI 返回了空消息，请重试。');
   return data;
  }
@@ -121,7 +127,7 @@ const server=http.createServer(async(req,res)=>{
    let raw='';for await(const chunk of req){raw+=chunk;if(Buffer.byteLength(raw)>200000)throw new Error('请求过大，请开启新讨论。');}
    const result=await handle(url.pathname.slice(5),JSON.parse(raw));res.setHeader('Content-Type','application/json');return res.end(JSON.stringify(result));
   }
-  const files={'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/api.js':['api.js','text/javascript'],'/demo.js':['demo.js','text/javascript'],'/style.css':['style.css','text/css']};
+  const files={'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/api.js':['api.js','text/javascript'],'/rounds.js':['rounds.js','text/javascript'],'/demo.js':['demo.js','text/javascript'],'/style.css':['style.css','text/css']};
   if(!files[url.pathname]){res.writeHead(404);return res.end('Not found');}
   const [file,type]=files[url.pathname];res.setHeader('Content-Type',`${type}; charset=utf-8`);res.end(await readFile(new URL(`./public/${file}`,import.meta.url)));
  }catch(error){res.writeHead(400,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify({error:error.message}));}

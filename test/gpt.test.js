@@ -82,3 +82,17 @@ test('自由讨论默认简短接话，整理方案显式切换，兼容已有�
  for(const c of calls){const p=JSON.parse(c.messages[1].content);assert.deepEqual(p.employee,employee);assert.equal(p.brandContext,base.brandContext);assert.deepEqual(p.history,history);assert.ok(!('response_format' in c));}
  `],{cwd:process.cwd(),stdio:'pipe'});
 });
+test('服务端独立轮隔离同事最新回答，共享轮保留同事回答',()=>{
+ execFileSync(process.execPath,['--input-type=module','-e',`
+ import assert from 'node:assert/strict';
+ process.env.NODE_ENV='test';process.env.AI_PROVIDER='deepseek';process.env.DEEPSEEK_API_KEY='test-key';
+ const {handle}=await import('./server.js');const calls=[];
+ globalThis.fetch=async(url,options)=>{calls.push(JSON.parse(options.body));return {ok:true,json:async()=>({choices:[{message:{content:'我想先确认目标。'},finish_reason:'stop'}]})};};
+ const history=[{kind:'user',text:'上个问题'},{kind:'employee',text:'此前观点'},{kind:'user',text:'新问题'},{kind:'employee',text:'本轮不应该提前看见的观点'}];
+ const base={employee:{name:'乙',description:'角色'},history,brandContext:'品牌'};
+ for(const roundPhase of ['independent','shared'])await handle('reply',{...base,roundPhase});
+ const inputs=calls.map(c=>JSON.parse(c.messages[1].content));
+ assert.deepEqual(inputs[0].history,history.slice(0,3));assert.deepEqual(inputs[1].history,history);
+ assert.equal(inputs[0].roundPhase,'independent');assert.equal(inputs[0].brandContext,'品牌');
+ `],{cwd:process.cwd(),stdio:'pipe'});
+});
