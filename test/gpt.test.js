@@ -68,3 +68,17 @@ test('生成与每轮发言均携带最新共享品牌资料，独立于聊天�
  }
  `],{cwd:process.cwd(),stdio:'pipe'});
 });
+test('自由讨论默认简短接话，整理方案显式切换，兼容已有角色与品牌背景',()=>{
+ execFileSync(process.execPath,['--input-type=module','-e',`
+ import assert from 'node:assert/strict';
+ process.env.NODE_ENV='test';process.env.AI_PROVIDER='deepseek';process.env.DEEPSEEK_API_KEY='test-key';
+ const {handle}=await import('./server.js');const calls=[];
+ globalThis.fetch=async(url,options)=>{calls.push(JSON.parse(options.body));return {ok:true,json:async()=>({choices:[{finish_reason:'stop',message:{content:'先等等，我们知道没买的人在犹豫什么吗？'}}]})};};
+ const employee={name:'周牧',role:'消费者研究',description:'谨慎，关注客户实际行为'};
+ const history=[{kind:'user',name:'我',text:'我想拍更多视频'},{kind:'employee',name:'林岚',text:'我同意一半，不过建议每条15秒，先做方案再定义指标。'}];
+ const base={demo:false,employee,history,brandContext:'抹茶品牌，预算500元',topic:'营销'};
+ for(const mode of [undefined,'plan','unknown'])await handle('reply',{...base,discussionMode:mode});
+ assert.deepEqual(calls.map(c=>JSON.parse(c.messages[1].content).discussionMode),['discussion','plan','discussion']);
+ for(const c of calls){const p=JSON.parse(c.messages[1].content);assert.deepEqual(p.employee,employee);assert.equal(p.brandContext,base.brandContext);assert.deepEqual(p.history,history);assert.ok(!('response_format' in c));}
+ `],{cwd:process.cwd(),stdio:'pipe'});
+});
