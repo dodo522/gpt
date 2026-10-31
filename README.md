@@ -56,3 +56,16 @@ npm test
 设置 OpenAI 密钥后，服务必须同时有 `APP_PASSWORD` 才开放访问；全部页面及 API 均受 HTTP Basic 登录保护，`/healthz` 仅返回无敏感信息的健康状态。公开部署应使用平台提供的 HTTPS。API 有每连接来源每分钟 30 次的内存限流，重启清零，不适合作为多用户计费配额系统。请在 OpenAI 平台设置适当的额度与使用提醒。
 
 验证时检查：`/healthz` 正常；未登录的 `/api/status` 返回 401；登录后取消演示模式能生成不同角色、下一轮能回应前面的具体观点。密钥存在状态不代表真实 API 调用已验证。
+
+## 改用 DeepSeek（现有 Render 服务无需重新创建）
+
+1. 到 https://platform.deepseek.com/ 注册或登录，在官方平台查看可用充值方式和价格，创建 API Key。DeepSeek 的 API 余额与其他平台独立计算。
+2. 在 Render 打开 `idea-room` → Environment，添加或修改：
+   - `AI_PROVIDER` = `deepseek`
+   - `DEEPSEEK_API_KEY` = 你在 DeepSeek 创建的密钥（仅在 Render 填写）
+   - `DEEPSEEK_MODEL` = `deepseek-chat`
+3. 保留原来的 `APP_PASSWORD`；旧的 `OPENAI_API_KEY` 和 `OPENAI_MODEL` 不会在 DeepSeek 模式下使用，可在 Render 中移除。
+4. 保存并重新部署最新 `main`；打开 Render 网站，取消演示模式，重新生成团队。讨论方向、角色描述与聊天上下文将发送给所选的 DeepSeek 服务。
+5. 显示 DeepSeek 模式并成功生成角色和发言后，才算真实调用验证通过。402 表示 DeepSeek 余额不足，401 表示密钥验证失败，429 表示速率限制。
+
+新建服务的 `render.yaml` 默认使用 DeepSeek。现有 Blueprint 若提示缺少 `DEEPSEEK_API_KEY`，在 Render 中安全填写后继续同步。服务端也可继续使用 OpenAI：设置 `AI_PROVIDER=openai` 并配置 `OPENAI_API_KEY`。没有明确设置 provider 时，有 DeepSeek 密钥会选择 DeepSeek，否则保留 OpenAI 默认行为。DeepSeek JSON 输出和请求路由已通过模拟上游测试，尚未用真实密钥在线验证。

@@ -9,9 +9,11 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 24.19.0
-      - key: OPENAI_MODEL
-        value: gpt-4.1-mini
-      - key: OPENAI_API_KEY
+      - key: AI_PROVIDER
+        value: deepseek
+      - key: DEEPSEEK_MODEL
+        value: deepseek-chat
+      - key: DEEPSEEK_API_KEY
         sync: false
       - key: APP_PASSWORD
         generateValue: true

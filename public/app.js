@@ -4,6 +4,7 @@ let state={employees:[],topic:'',messages:[],demo:true,page:'setup',pending:null
 try{const saved=JSON.parse(localStorage.getItem('idea-room'));if(saved&&Array.isArray(saved.employees)&&Array.isArray(saved.messages))state={...state,...saved};}catch{}
 let busy=false;
 let gptAvailable=false;
+let providerName='AI';
 function save(){try{localStorage.setItem('idea-room',JSON.stringify(state));}catch{showError('浏览器存储空间不足，请导出讨论以免丢失。');}}
 function showError(message){$('error').textContent=message;$('error').hidden=!message;}
 function avatar(name){const el=document.createElement('span');el.className='avatar';el.textContent=name.slice(0,1);return el;}
@@ -18,7 +19,7 @@ function renderMessages(){
  $('participants').replaceChildren();state.employees.forEach(e=>{const p=document.createElement('div');p.className='person';p.append(avatar(e.name),document.createTextNode(e.name+' · '+e.role));$('participants').append(p);});
  $('messages').replaceChildren();if(!state.messages.length){const w=document.createElement('div');w.className='welcome';w.textContent='✧ 所有人都已入座。\n抛出你的第一个问题，让不同的视角相遇。';$('messages').append(w);}
  state.messages.forEach(m=>{const row=document.createElement('div');row.className='bubble-row '+(m.kind==='user'?'user':'');const main=document.createElement('div');main.className='bubble-main';const name=document.createElement('div');name.className='bubble-name';name.textContent=m.name;const bubble=document.createElement('div');bubble.className='bubble';bubble.textContent=m.text;main.append(name,bubble);row.append(avatar(m.name),main);$('messages').append(row);});
- $('messages').scrollTop=$('messages').scrollHeight;$('modeHint').textContent=state.demo?'演示模式 · 示例发言，未调用 GPT':'GPT 模式 · 每位员工结合上下文依次发言';$('retry').hidden=state.pending===null;
+ $('messages').scrollTop=$('messages').scrollHeight;$('modeHint').textContent=state.demo?'演示模式 · 示例发言，未调用 GPT':`${providerName} 模式 · 每位员工结合上下文依次发言`;$('retry').hidden=state.pending===null;
 }
 $('minus').onclick=()=>$('count').value=Math.max(2,Number($('count').value)-1);$('plus').onclick=()=>$('count').value=Math.min(8,Number($('count').value)+1);
 $('generateForm').onsubmit=async event=>{event.preventDefault();if(busy)return;if(state.messages.length&&!confirm('重新生成团队会清空当前讨论。继续吗？'))return;showError('');lock(true);$('generate').textContent='正在召集团队…';try{const topic=$('topic').value.trim();const demo=$('demo').checked;const result=await api('generate',{topic,count:Number($('count').value),demo});state={employees:result.employees,topic,demo,messages:[],page:'setup',pending:null};save();renderCards();}catch(e){showError(e.message);}finally{lock(false);$('generate').textContent='✧ 生成我的团队 →';}};
@@ -30,4 +31,4 @@ $('message').onkeydown=event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.i
 $('retry').onclick=()=>discuss();
 $('export').onclick=()=>{if(!state.employees.length)return showError('生成团队后即可导出。');const content=`# 灵感同事：${state.topic}\n\n${state.demo?'演示模式（示例内容）':'GPT 模式'}\n\n## 团队\n\n`+state.employees.map(e=>`### ${e.name} · ${e.role}\n${e.description}`).join('\n\n')+'\n\n## 讨论\n\n'+state.messages.map(m=>`### ${m.name}\n${m.text}`).join('\n\n');const url=URL.createObjectURL(new Blob([content],{type:'text/markdown;charset=utf-8'}));const link=document.createElement('a');link.href=url;link.download='灵感同事-讨论记录.md';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 $('topic').value=state.topic;$('count').value=state.employees.length||4;$('demo').checked=state.demo;renderCards();page(state.page);
-fetch('/api/status').then(r=>r.json()).then(({configured})=>{gptAvailable=!!configured;$('demo').disabled=!gptAvailable;if(configured&&!state.employees.length)$('demo').checked=false;if(!configured)$('demo').checked=true;}).catch(()=>{ $('demo').checked=true; $('demo').disabled=true; $('demo').parentElement.title='静态演示版，仅支持演示模式'; });
+fetch('/api/status').then(r=>r.json()).then(({configured,provider})=>{providerName=provider||'AI';renderMessages();gptAvailable=!!configured;$('demo').disabled=!gptAvailable;if(configured&&!state.employees.length)$('demo').checked=false;if(!configured)$('demo').checked=true;}).catch(()=>{ $('demo').checked=true; $('demo').disabled=true; $('demo').parentElement.title='静态演示版，仅支持演示模式'; });

@@ -1,22 +1,35 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { timingSafeEqual } from 'node:crypto';
-const key = process.env.OPENAI_API_KEY;
+const provider=(process.env.AI_PROVIDER || (process.env.DEEPSEEK_API_KEY?'deepseek':'openai')).toLowerCase();
+if(!['openai','deepseek'].includes(provider))throw new Error('AI_PROVIDER 必须为 openai 或 deepseek');
+const isDeepSeek=provider==='deepseek';
+const providerName=isDeepSeek?'DeepSeek':'OpenAI';
+const keyName=isDeepSeek?'DEEPSEEK_API_KEY':'OPENAI_API_KEY';
+const key=process.env[keyName];
+const endpoint=isDeepSeek?'https://api.deepseek.com/chat/completions':'https://api.openai.com/v1/chat/completions';
 const accessPassword=process.env.APP_PASSWORD;
 const buckets=new Map();
 export function authorized(header){
  if(!accessPassword)return !key;
  try{const decoded=Buffer.from((header||'').replace(/^Basic /,''),'base64').toString();const password=decoded.slice(decoded.indexOf(':')+1);const a=Buffer.from(password),b=Buffer.from(accessPassword);return a.length===b.length&&timingSafeEqual(a,b);}catch{return false;}
 }
-const model = process.env.OPENAI_MODEL || 'gpt-4.1-mini';
+const model=isDeepSeek?(process.env.DEEPSEEK_MODEL||'deepseek-chat'):(process.env.OPENAI_MODEL||'gpt-4.1-mini');
 const names=['林知夏','陈屿','周可可','许言','沈清','陆野','唐悦','顾安'];
 const roles=['用户研究员','产品策略师','创意策划','技术负责人','商业分析师','品牌设计师','增长运营','行业顾问'];
 const traits=['温和敏锐，善于倾听，始终追问用户真正的需求','理性务实，喜欢挑战假设，注重投入产出','开朗大胆，联想丰富，敢于提出反常识的方案','沉稳严谨，关注可行性，喜欢把问题拆成小实验','坦率谨慎，用数据说话，习惯提前识别风险','好奇独立，重视审美与情绪体验','热情直接，善于沟通，关注传播和转化','耐心博学，擅长联系跨行业案例'];
 async function gpt(system, payload){
- const response=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify({model,messages:[{role:'system',content:system},{role:'user',content:JSON.stringify(payload)}],response_format:{type:'json_object'},max_completion_tokens:5000}),signal:AbortSignal.timeout(90000)});
+ const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify({model,messages:[{role:'system',content:system},{role:'user',content:JSON.stringify(payload)}],response_format:{type:'json_object'},...(isDeepSeek?{max_tokens:5000}:{max_completion_tokens:5000})}),signal:AbortSignal.timeout(90000)});
  if(!response.ok){
   let detail={};try{detail=(await response.json()).error||{};}catch{}
   const code=String(detail.code||detail.type||'');
+  if(isDeepSeek){
+   if(response.status===402)throw new Error('DeepSeek API 余额不足（402）。请到 DeepSeek 开放平台检查余额并充值，到账后再试。');
+   if(response.status===429)throw new Error('DeepSeek API 调用速率受限（429）。请稍后重试，并减少员工数量。');
+   if(response.status===401)throw new Error('DeepSeek 密钥验证失败（401）。请检查 Render 中的 DEEPSEEK_API_KEY，保存后重新部署。');
+   if(response.status===400||response.status===422)throw new Error('DeepSeek 请求参数无效。请检查 DEEPSEEK_MODEL 是否为支持 JSON 输出的对话模型。');
+   throw new Error(`DeepSeek 请求失败（${response.status}）。请检查模型权限或服务状态，稍后重试。`);
+  }
   if(response.status===429&&['insufficient_quota','billing_hard_limit_reached'].includes(code))throw new Error('OpenAI API 可用额度不足（insufficient_quota）。请在 OpenAI Billing 检查余额、账单状态及密钥所属项目；ChatGPT 订阅不包含 API 额度。充值到账后再试，无需反复生成密钥。');
   if(response.status===429&&code==='rate_limit_exceeded')throw new Error('OpenAI API 调用速率受限（rate_limit_exceeded）。请稍后再试，减少员工数量，并在 OpenAI Limits 查看该项目的请求与 token 速率限制。');
   if(response.status===429)throw new Error('OpenAI 返回 429，暂未能区分额度不足或速率限制。请先在 OpenAI Billing 检查余额和账单状态，再查看 Limits；不要连续点击重试。');
@@ -29,7 +42,7 @@ async function gpt(system, payload){
 }
 export async function handle(action, body){
  const demo=body.demo === true;
- if(!demo&&!key)throw new Error('尚未配置服务端 OPENAI_API_KEY，请选择演示模式或按 README 配置。');
+ if(!demo&&!key)throw new Error(`尚未配置服务端 ${keyName}，请选择演示模式或按 README 配置。`);
  if(action==='generate'){
   const n=Number(body.count),topic=String(body.topic||'').trim();
   if(!Number.isInteger(n)||n<2||n>8||!topic||topic.length>1000)throw new Error('请输入讨论方向，员工数量需为 2–8 人。');
@@ -52,11 +65,11 @@ const server=http.createServer(async(req,res)=>{
  try{
   const url=new URL(req.url,'http://localhost');
   if(req.method==='GET'&&url.pathname==='/healthz'){res.setHeader('Content-Type','application/json');return res.end(JSON.stringify({ok:true}));}
-  if(!authorized(req.headers.authorization)){res.writeHead(401,{'WWW-Authenticate':'Basic realm="Idea Room", charset="UTF-8"','Content-Type':'text/plain; charset=utf-8'});return res.end('请输入网站访问密码（用户名可任意填写）。管理员需要同时配置 APP_PASSWORD 和 OPENAI_API_KEY。');}
+  if(!authorized(req.headers.authorization)){res.writeHead(401,{'WWW-Authenticate':'Basic realm="Idea Room", charset="UTF-8"','Content-Type':'text/plain; charset=utf-8'});return res.end('请输入网站访问密码（用户名可任意填写）。管理员需要同时配置 APP_PASSWORD 和所选模型服务的 API 密钥。');}
   res.setHeader('Cache-Control','no-store');
   res.setHeader('X-Content-Type-Options','nosniff');
   res.setHeader('Referrer-Policy','same-origin');
-  if(req.method==='GET'&&url.pathname==='/api/status'){res.setHeader('Content-Type','application/json');return res.end(JSON.stringify({configured:!!key}));}
+  if(req.method==='GET'&&url.pathname==='/api/status'){res.setHeader('Content-Type','application/json');return res.end(JSON.stringify({configured:!!key,provider:providerName,model}));}
   if(req.method==='POST'&&['/api/generate','/api/reply'].includes(url.pathname)){
    const now=Date.now(),bucketKey=req.socket.remoteAddress;
    for(const [ip,b] of buckets)if(now-b.start>60000)buckets.delete(ip);

@@ -30,3 +30,23 @@ test('区分上游额度不足、速率限制和无效密钥且不暴露上游�
  }
  `],{cwd:process.cwd(),stdio:'pipe'});
 });
+test('DeepSeek 使用独立密钥、正确接口及参数，并区分余额和限流',()=>{
+ execFileSync(process.execPath,['--input-type=module','-e',`
+ import assert from 'node:assert/strict';
+ process.env.NODE_ENV='test';process.env.AI_PROVIDER='deepseek';process.env.DEEPSEEK_API_KEY='test-deepseek-key';process.env.OPENAI_API_KEY='must-not-be-used';delete process.env.DEEPSEEK_MODEL;
+ const {handle,authorized}=await import('./server.js');
+ assert.equal(authorized(),false);
+ const employee={name:'测试',role:'设计师',description:'谨慎，重视用户体验'};
+ const history=[{kind:'user',name:'我',text:'怎么设计活动？'}];
+ globalThis.fetch=async(url,options)=>{
+ assert.equal(url,'https://api.deepseek.com/chat/completions');assert.equal(options.headers.Authorization,'Bearer test-deepseek-key');
+ const body=JSON.parse(options.body);assert.equal(body.model,'deepseek-chat');assert.equal(body.max_tokens,5000);assert.ok(!('max_completion_tokens' in body));assert.deepEqual(body.response_format,{type:'json_object'});assert.deepEqual(JSON.parse(body.messages[1].content).history,history);
+ return {ok:true,json:async()=>({choices:[{message:{content:JSON.stringify({text:'先明确用户场景。'})}}]})};
+ };
+ assert.equal((await handle('reply',{demo:false,employee,history,topic:'活动'})).text,'先明确用户场景。');
+ for(const [status,pattern] of [[402,/DeepSeek API 余额不足/],[429,/DeepSeek API 调用速率受限/],[401,/DEEPSEEK_API_KEY/]]){
+ globalThis.fetch=async()=>({ok:false,status,json:async()=>({error:{message:'private upstream information'}})});
+ await assert.rejects(handle('reply',{demo:false,employee,history}),pattern);
+ }
+ `],{cwd:process.cwd(),stdio:'pipe',env:{...process.env,APP_PASSWORD:''}});
+});
