@@ -19,3 +19,14 @@ test('服务端鉴权、角色请求和聊天上下文通过模拟上游验证',
  assert.match(calls[1].messages[0].content,/不要套用/);assert.match(reply.text,/访谈对象/);
  `],{cwd:process.cwd(),stdio:'pipe'});
 });
+test('区分上游额度不足、速率限制和无效密钥且不暴露上游原始信息',()=>{
+ execFileSync(process.execPath,['--input-type=module','-e',`
+ import assert from 'node:assert/strict';
+ process.env.NODE_ENV='test';process.env.OPENAI_API_KEY='test-not-a-real-key';
+ const {handle}=await import('./server.js');
+ for(const [status,code,expected] of [[429,'insufficient_quota',/可用额度不足/],[429,'rate_limit_exceeded',/调用速率受限/],[429,'unknown',/暂未能区分/],[401,'invalid_api_key',/密钥验证失败/]]){
+ globalThis.fetch=async()=>({ok:false,status,json:async()=>({error:{code,message:'sensitive-upstream-detail'}})});
+ await assert.rejects(handle('generate',{count:2,topic:'测试',demo:false}),error=>{assert.match(error.message,expected);assert.ok(!error.message.includes('sensitive-upstream-detail'));return true;});
+ }
+ `],{cwd:process.cwd(),stdio:'pipe'});
+});

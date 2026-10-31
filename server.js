@@ -14,7 +14,17 @@ const roles=['用户研究员','产品策略师','创意策划','技术负责人
 const traits=['温和敏锐，善于倾听，始终追问用户真正的需求','理性务实，喜欢挑战假设，注重投入产出','开朗大胆，联想丰富，敢于提出反常识的方案','沉稳严谨，关注可行性，喜欢把问题拆成小实验','坦率谨慎，用数据说话，习惯提前识别风险','好奇独立，重视审美与情绪体验','热情直接，善于沟通，关注传播和转化','耐心博学，擅长联系跨行业案例'];
 async function gpt(system, payload){
  const response=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify({model,messages:[{role:'system',content:system},{role:'user',content:JSON.stringify(payload)}],response_format:{type:'json_object'},max_completion_tokens:5000}),signal:AbortSignal.timeout(90000)});
- if(!response.ok) throw new Error(`AI 服务请求失败（${response.status}），请检查服务端密钥、额度和网络。`);
+ if(!response.ok){
+  let detail={};try{detail=(await response.json()).error||{};}catch{}
+  const code=String(detail.code||detail.type||'');
+  if(response.status===429&&['insufficient_quota','billing_hard_limit_reached'].includes(code))throw new Error('OpenAI API 可用额度不足（insufficient_quota）。请在 OpenAI Billing 检查余额、账单状态及密钥所属项目；ChatGPT 订阅不包含 API 额度。充值到账后再试，无需反复生成密钥。');
+  if(response.status===429&&code==='rate_limit_exceeded')throw new Error('OpenAI API 调用速率受限（rate_limit_exceeded）。请稍后再试，减少员工数量，并在 OpenAI Limits 查看该项目的请求与 token 速率限制。');
+  if(response.status===429)throw new Error('OpenAI 返回 429，暂未能区分额度不足或速率限制。请先在 OpenAI Billing 检查余额和账单状态，再查看 Limits；不要连续点击重试。');
+  if(response.status===401)throw new Error('OpenAI 密钥验证失败（401）。请检查 Render 中的 OPENAI_API_KEY 是否完整、有效，保存后重新部署。');
+  if(response.status===403)throw new Error('OpenAI 拒绝访问（403）。请检查账户、项目和模型的访问权限。');
+  if(response.status===404)throw new Error('OpenAI 模型或接口不可用（404）。请检查 Render 中 OPENAI_MODEL 对应的模型是否向当前项目开放。');
+  throw new Error(`OpenAI 请求失败（${response.status}）。请稍后重试；若持续失败，请检查模型配置或服务状态。`);
+ }
  return JSON.parse((await response.json()).choices[0].message.content);
 }
 export async function handle(action, body){
