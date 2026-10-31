@@ -38,3 +38,21 @@ npm test
 ## 静态演示版
 
 `public/` 可直接部署到 GitHub Pages 等静态托管服务；演示模式在浏览器本地运行，不调用 GPT、不需要密钥。真实 GPT 模式需要运行本项目 Node.js 服务端。
+
+## 部署真实 GPT 版本到 Render
+
+[开始创建 Render 服务](https://dashboard.render.com/select-repo?type=blueprint&repo=https%3A%2F%2Fgithub.com%2Fdodo522%2Fgpt)
+
+1. 登录 Render，选择本仓库的 `main` 分支，通过 Blueprint 使用 `render.yaml`。
+2. 在 Render 的秘密环境变量中填写 `OPENAI_API_KEY`。密钥从 OpenAI 平台创建，需有可用的 API 额度。不要发到聊天或提交到 GitHub。
+3. `APP_PASSWORD` 会自动生成。在 Render 服务的 Environment 页面安全查看它；它是本网站的访问密码，请妥善保管。
+4. 等待部署显示 Live，访问 Render 提供的 HTTPS 地址。浏览器弹出登录框时，用户名任意填写，密码填 `APP_PASSWORD`。
+5. 取消「演示模式」并重新生成团队，然后开始讨论。旧的演示会话不会自动变成 GPT 会话。
+
+免费实例的可用性及休眠策略以 Render 当时规则为准；休眠后的首次请求可能需要等待。GitHub Pages 网址保留为静态演示版，真实 GPT 版使用 Render 新网址。
+
+### 访问保护与验证
+
+设置 OpenAI 密钥后，服务必须同时有 `APP_PASSWORD` 才开放访问；全部页面及 API 均受 HTTP Basic 登录保护，`/healthz` 仅返回无敏感信息的健康状态。公开部署应使用平台提供的 HTTPS。API 有每连接来源每分钟 30 次的内存限流，重启清零，不适合作为多用户计费配额系统。请在 OpenAI 平台设置适当的额度与使用提醒。
+
+验证时检查：`/healthz` 正常；未登录的 `/api/status` 返回 401；登录后取消演示模式能生成不同角色、下一轮能回应前面的具体观点。密钥存在状态不代表真实 API 调用已验证。

@@ -3,11 +3,12 @@ const $=id=>document.getElementById(id);
 let state={employees:[],topic:'',messages:[],demo:true,page:'setup',pending:null};
 try{const saved=JSON.parse(localStorage.getItem('idea-room'));if(saved&&Array.isArray(saved.employees)&&Array.isArray(saved.messages))state={...state,...saved};}catch{}
 let busy=false;
+let gptAvailable=false;
 function save(){try{localStorage.setItem('idea-room',JSON.stringify(state));}catch{showError('浏览器存储空间不足，请导出讨论以免丢失。');}}
 function showError(message){$('error').textContent=message;$('error').hidden=!message;}
 function avatar(name){const el=document.createElement('span');el.className='avatar';el.textContent=name.slice(0,1);return el;}
 async function api(action,data){if(data.demo)return demoRequest(action,data);const r=await fetch('/api/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});const result=await r.json();if(!r.ok)throw new Error(result.error||'请求失败');return result;}
-function lock(value){busy=value;for(const id of ['generate','start','send','back','teamNav','chatNav','demo','minus','plus','count','topic'])$(id).disabled=value||(id==='start'&&!state.employees.length);$('retry').disabled=value;document.querySelectorAll('.card input,.card textarea').forEach(el=>el.disabled=value);}
+function lock(value){busy=value;for(const id of ['generate','start','send','back','teamNav','chatNav','demo','minus','plus','count','topic'])$(id).disabled=value||(id==='start'&&!state.employees.length)||(id==='demo'&&!gptAvailable);$('retry').disabled=value;document.querySelectorAll('.card input,.card textarea').forEach(el=>el.disabled=value);}
 function page(name){if(busy)return;if(name==='chat'&&!state.employees.length)return showError('先生成一支团队，再开始讨论。');state.page=name;save();$('setup').hidden=name!=='setup';$('chat').hidden=name!=='chat';$('teamNav').classList.toggle('active',name==='setup');$('chatNav').classList.toggle('active',name==='chat');$('crumb').textContent=name==='setup'?'组建团队':'头脑风暴';$('chatTopic').textContent=state.topic;renderMessages();}
 function renderCards(){
  $('cards').replaceChildren();$('empty').hidden=state.employees.length>0;$('teamCount').textContent=state.employees.length+' 位成员';$('start').disabled=!state.employees.length;
@@ -29,4 +30,4 @@ $('message').onkeydown=event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.i
 $('retry').onclick=()=>discuss();
 $('export').onclick=()=>{if(!state.employees.length)return showError('生成团队后即可导出。');const content=`# 灵感同事：${state.topic}\n\n${state.demo?'演示模式（示例内容）':'GPT 模式'}\n\n## 团队\n\n`+state.employees.map(e=>`### ${e.name} · ${e.role}\n${e.description}`).join('\n\n')+'\n\n## 讨论\n\n'+state.messages.map(m=>`### ${m.name}\n${m.text}`).join('\n\n');const url=URL.createObjectURL(new Blob([content],{type:'text/markdown;charset=utf-8'}));const link=document.createElement('a');link.href=url;link.download='灵感同事-讨论记录.md';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 $('topic').value=state.topic;$('count').value=state.employees.length||4;$('demo').checked=state.demo;renderCards();page(state.page);
-fetch('/api/status').then(r=>r.json()).then(({configured})=>{if(configured&&!state.employees.length)$('demo').checked=false;}).catch(()=>{ $('demo').checked=true; $('demo').disabled=true; $('demo').parentElement.title='静态演示版，仅支持演示模式'; });
+fetch('/api/status').then(r=>r.json()).then(({configured})=>{gptAvailable=!!configured;$('demo').disabled=!gptAvailable;if(configured&&!state.employees.length)$('demo').checked=false;if(!configured)$('demo').checked=true;}).catch(()=>{ $('demo').checked=true; $('demo').disabled=true; $('demo').parentElement.title='静态演示版，仅支持演示模式'; });

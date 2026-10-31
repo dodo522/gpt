@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: idea-room
+    runtime: node
+    plan: free
+    buildCommand: node --version
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: 24.19.0
+      - key: OPENAI_MODEL
+        value: gpt-4.1-mini
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: APP_PASSWORD
+        generateValue: true
