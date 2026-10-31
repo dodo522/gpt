@@ -50,3 +50,21 @@ test('DeepSeek 使用独立密钥、正确接口及参数，并区分余额和�
  }
  `],{cwd:process.cwd(),stdio:'pipe',env:{...process.env,APP_PASSWORD:''}});
 });
+test('生成与每轮发言均携带最新共享品牌资料，独立于聊天截断和角色卡',()=>{
+ execFileSync(process.execPath,['--input-type=module','-e',`
+ import assert from 'node:assert/strict';
+ process.env.NODE_ENV='test';process.env.AI_PROVIDER='deepseek';process.env.DEEPSEEK_API_KEY='test-key';
+ const {handle}=await import('./server.js');const calls=[];
+ globalThis.fetch=async(url,options)=>{calls.push(JSON.parse(options.body));return {ok:true,json:async()=>({choices:[{message:{content:JSON.stringify(calls.length===1?{employees:[{name:'甲',role:'研究员',description:'谨慎'},{name:'乙',role:'策划',description:'大胆'}]}:{text:'根据品牌资料，先在预算内验证。'})}}]})};};
+ const original='品牌：青芽。抹茶每盒 59 元；目标客户为办公室人群；预算 1000 元。';
+ const updated=original+' 已确认预算更新为 500 元。';
+ const {employees}=await handle('generate',{demo:false,count:2,topic:'品牌营销',brandContext:original});
+ const history=Array.from({length:60},(_,i)=>({kind:i%2?'employee':'user',name:'测试',text:'讨论 '+i}));
+ for(const employee of employees)await handle('reply',{demo:false,employee,topic:'品牌营销',history,brandContext:updated});
+ assert.equal(JSON.parse(calls[0].messages[1].content).brandContext,original);
+ for(const call of calls.slice(1)){
+ const payload=JSON.parse(call.messages[1].content);assert.equal(payload.brandContext,updated);assert.equal(payload.history.length,40);assert.ok(!('brandContext' in payload.employee));
+ assert.match(call.messages[0].content,/不得编造该品牌/);assert.match(call.messages[0].content,/推测/);assert.match(call.messages[0].content,/待确认/);
+ }
+ `],{cwd:process.cwd(),stdio:'pipe'});
+});

@@ -17,3 +17,7 @@ test('拒绝无角色或空上下文的讨论',async()=>{
  await assert.rejects(handle('reply',{demo:true,history:[]}));
  await assert.rejects(handle('reply',{demo:true,employee:{description:'test'},history:[]}));
 });
+test('品牌资料兼容旧会话，拒绝非文本或过长内容',async()=>{
+ for(const brandContext of [123,{},'字'.repeat(12001)])await assert.rejects(handle('generate',{demo:true,count:2,topic:'测试',brandContext}),/品牌资料/);
+ assert.equal((await handle('generate',{demo:true,count:2,topic:'测试',brandContext:''})).employees.length,2);
+});
