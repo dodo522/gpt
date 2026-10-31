@@ -1,3 +1,4 @@
+import { requestAI } from './api.js';
 import { demoRequest } from './demo.js';
 const $=id=>document.getElementById(id);
 let state={employees:[],topic:'',brandContext:'',messages:[],demo:true,page:'setup',pending:null};
@@ -8,7 +9,7 @@ let providerName='AI';
 function save(){try{localStorage.setItem('idea-room',JSON.stringify(state));}catch{showError('浏览器存储空间不足，请导出讨论以免丢失。');}}
 function showError(message){$('error').textContent=message;$('error').hidden=!message;}
 function avatar(name){const el=document.createElement('span');el.className='avatar';el.textContent=name.slice(0,1);return el;}
-async function api(action,data){if(data.demo)return demoRequest(action,data);const r=await fetch('/api/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});const result=await r.json();if(!r.ok)throw new Error(result.error||'请求失败');return result;}
+async function api(action,data){if(data.demo)return demoRequest(action,data);return requestAI(action,data);}
 function lock(value){busy=value;for(const id of ['generate','start','send','back','teamNav','chatNav','demo','minus','plus','count','topic','brandContext'])$(id).disabled=value||(id==='start'&&!state.employees.length)||(id==='demo'&&!gptAvailable);$('retry').disabled=value;document.querySelectorAll('.card input,.card textarea').forEach(el=>el.disabled=value);}
 function page(name){if(busy)return;if(name==='chat'&&!state.employees.length)return showError('先生成一支团队，再开始讨论。');state.page=name;save();$('setup').hidden=name!=='setup';$('chat').hidden=name!=='chat';$('teamNav').classList.toggle('active',name==='setup');$('chatNav').classList.toggle('active',name==='chat');$('crumb').textContent=name==='setup'?'组建团队':'头脑风暴';$('chatTopic').textContent=state.topic;renderMessages();}
 function renderCards(){

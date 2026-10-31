@@ -40,7 +40,7 @@ test('DeepSeek 使用独立密钥、正确接口及参数，并区分余额和�
  const history=[{kind:'user',name:'我',text:'怎么设计活动？'}];
  globalThis.fetch=async(url,options)=>{
  assert.equal(url,'https://api.deepseek.com/chat/completions');assert.equal(options.headers.Authorization,'Bearer test-deepseek-key');
- const body=JSON.parse(options.body);assert.equal(body.model,'deepseek-chat');assert.equal(body.max_tokens,5000);assert.ok(!('max_completion_tokens' in body));assert.deepEqual(body.response_format,{type:'json_object'});assert.deepEqual(JSON.parse(body.messages[1].content).history,history);
+ const body=JSON.parse(options.body);assert.equal(body.model,'deepseek-chat');assert.equal(body.max_tokens,5000);assert.ok(!('max_completion_tokens' in body));assert.ok(!('response_format' in body));assert.deepEqual(JSON.parse(body.messages[1].content).history,history);
  return {ok:true,json:async()=>({choices:[{message:{content:JSON.stringify({text:'先明确用户场景。'})}}]})};
  };
  assert.equal((await handle('reply',{demo:false,employee,history,topic:'活动'})).text,'先明确用户场景。');
